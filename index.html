@@ -160,6 +160,8 @@
 
     ["adr","co","平均予約単価（円）","","num",3000,500000,1000,30000],
     ["months","co","シミュレーション期間（ヶ月）","","num",1,36,1,12],
+    ["ramp_months","co","立ち上げ期間（ヶ月）","0で立ち上げ無し・full到達までの月数","num",0,12,1,0],
+    ["ramp_start","co","初月の稼働率","立ち上げ初月のフロー稼働率%","pct",5,100,5,100],
   ];
   var DEF={}, TYPE={}; F.forEach(function(f){DEF[f[0]]=f[8]; TYPE[f[0]]=f[4];});
   var IDS = F.map(function(f){return f[0];});
@@ -210,24 +212,29 @@
   function calc(){
     var thImp = val("th_accounts")*val("th_posts")*val("th_imp");
     var thLikes = thImp*val("th_like")/100;
-    var thFlow = thImp*(val("th_ctr")/100)*(val("th_reach")/100)*(val("th_cvr")/100);
+    // full = 巡航（立ち上げ完了後）の値。立ち上げ期は月ごとにランプ係数を掛ける
+    var thFlowF = thImp*(val("th_ctr")/100)*(val("th_reach")/100)*(val("th_cvr")/100);
 
     var igImp = val("ig_reels")+val("ig_feed");
-    var igFlow = igImp*(val("ig_profile")/100)*(val("ig_link")/100)*(val("ig_cvr")/100);
-    var newFollowers = val("ig_reels")*(val("ig_reelsFollow")/100) + val("ig_feed")*(val("ig_feedFollow")/100) + val("f_other");
+    var igFlowF = igImp*(val("ig_profile")/100)*(val("ig_link")/100)*(val("ig_cvr")/100);
+    var newFollowersF = val("ig_reels")*(val("ig_reelsFollow")/100) + val("ig_feed")*(val("ig_feedFollow")/100) + val("f_other");
 
     var churn=val("f_churn")/100, rate=val("f_rate")/100, adr=val("adr");
     var months=Math.max(1,Math.round(val("months")));
+    var rmo=Math.max(0,Math.round(val("ramp_months"))), rs=val("ramp_start")/100;
+    function ramp(m){ return rmo<=0 ? 1 : Math.min(1, rs + (1-rs)*(m-1)/rmo); }
     var Ffol=val("f_start"), rows=[];
     for(var m=1;m<=months;m++){
-      Ffol = Ffol*(1-churn) + newFollowers;
+      var rp=ramp(m);
+      var thFlow=thFlowF*rp, igFlow=igFlowF*rp, newF=newFollowersF*rp;
+      Ffol = Ffol*(1-churn) + newF;
       var stock = Ffol*rate;
       var total = thFlow + igFlow + stock;
-      rows.push({m:m, fol:Ffol, stock:stock, thFlow:thFlow, igFlow:igFlow, total:total, rev:total*adr});
+      rows.push({m:m, fol:Ffol, stock:stock, thFlow:thFlow, igFlow:igFlow, ramp:rp, total:total, rev:total*adr});
     }
     var cumB=0, cumR=0; rows.forEach(function(r){cumB+=r.total; cumR+=r.rev;});
-    return {thImp:thImp, thLikes:thLikes, igImp:igImp, newFollowers:newFollowers, thFlow:thFlow, igFlow:igFlow,
-            rows:rows, months:months, cumB:cumB, cumR:cumR, adr:adr};
+    return {thImp:thImp, thLikes:thLikes, igImp:igImp, newFollowers:newFollowersF, thFlow:thFlowF, igFlow:igFlowF,
+            rows:rows, months:months, cumB:cumB, cumR:cumR, adr:adr, rampMonths:rmo, rampStart:rs};
   }
 
   function niceMax(v){ if(v<=0)return 1; var p=Math.pow(10,Math.floor(Math.log10(v))); var f=v/p;
@@ -295,6 +302,7 @@
 
     document.getElementById("foot").innerHTML=
       "※ モデル：月間予約 = Threadsフロー（imp×クリック率×到達率×CVR）＋ IGフロー（imp×プロフィール率×リンクタップ率×CVR）＋ IGストック（フォロワー総数×月間予約率）。フォロワー総数は毎月〔新規−離脱〕で更新され、ストック分が複利で増えます。<br>"+
+      (d.rampMonths>0 ? "※ 立ち上げ期：最初の "+d.rampMonths+"ヶ月はフロー（Threads/IGのimp・新規フォロワー獲得）が初月 "+Math.round(d.rampStart*100)+"% から徐々に立ち上がり、full（巡航）に到達します。各前提値は『巡航時（full）』の値です。<br>" : "")+
       "※ 数値はすべて入力前提に基づく試算であり、成果を保証するものではありません。実運用では各転換率を実測値で更新してください。前提はURLで共有できます。";
 
     writeHash();
