@@ -1,0 +1,314 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="予約予測シミュレーター（統合版）— Threads × Instagram">
+<meta property="og:description" content="Threadsの打数、Instagramのフィード/リール、フォロワー資産から、ホテルの月次予約・売上を試算。">
+<title>予約予測シミュレーター（統合版）— Threads × Instagram</title>
+<style>
+  :root{
+    --petrol:#0E3A42; --petrol2:#15535F; --ivory:#F6F2EA; --sand:#EFE7D6;
+    --brass:#C9A24B; --brassd:#8A6D2E; --ink:#1F2A2E; --muted:#657275;
+    --card:#FFFFFF; --line:#E4DCCC;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--ivory); color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","游ゴシック",Meiryo,system-ui,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased; padding:22px;}
+  .wrap{max-width:1180px; margin:0 auto}
+  .eyebrow{font-size:12px; font-weight:700; letter-spacing:.16em; color:var(--brassd)}
+  h1{font-size:25px; margin:4px 0 6px; color:var(--petrol)}
+  .lead{font-size:13px; color:var(--muted); margin:0 0 10px; max-width:820px}
+  .pill{display:inline-block; font-size:11.5px; font-weight:700; color:var(--brassd);
+    background:var(--sand); border:1px solid var(--line); padding:4px 11px; border-radius:999px}
+
+  .grid{display:grid; grid-template-columns:470px 1fr; gap:18px; align-items:start; margin-top:16px}
+  @media(max-width:900px){ .grid{grid-template-columns:1fr} body{padding:15px} h1{font-size:21px} }
+
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px;
+    box-shadow:0 4px 14px rgba(31,42,46,.06)}
+  .group{margin-top:16px}
+  .group:first-child{margin-top:4px}
+  .gh{font-size:12px; font-weight:700; letter-spacing:.03em; margin-bottom:10px; padding-bottom:6px;
+    border-bottom:1px solid var(--line)}
+  .gh .tag{font-weight:600; font-size:10.5px; color:#fff; padding:2px 8px; border-radius:999px; margin-right:8px}
+  .fields{display:grid; grid-template-columns:1fr 1fr; gap:10px 16px}
+  @media(max-width:520px){ .fields{grid-template-columns:1fr} }
+  .field .row{display:flex; justify-content:space-between; align-items:baseline; gap:6px}
+  .field label{font-size:12px; color:var(--ink); font-weight:600; line-height:1.35}
+  .field .hint{display:block; font-size:10px; color:var(--muted); font-weight:500}
+  .field .val{font-size:12.5px; font-weight:700; color:var(--petrol); font-variant-numeric:tabular-nums; white-space:nowrap}
+  input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:5px; margin-top:7px;
+    border-radius:999px; background:#E7E0D2; outline:none}
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+    background:var(--petrol); border:2.5px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.25); cursor:pointer}
+  input[type=range]::-moz-range-thumb{ width:15px; height:15px; border-radius:50%; background:var(--petrol);
+    border:2.5px solid #fff; cursor:pointer}
+  input[type=number]{ width:100%; text-align:right; font-size:13px; font-weight:700; color:var(--petrol);
+    font-variant-numeric:tabular-nums; padding:6px 8px; margin-top:5px; border:1px solid var(--line);
+    border-radius:8px; background:#FCFAF5}
+  input:focus-visible{ box-shadow:0 0 0 3px rgba(201,162,75,.35); border-color:var(--brass)}
+
+  .derived{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px}
+  .dchip{background:var(--sand); border-radius:10px; padding:9px 11px}
+  .dchip .l{font-size:10.5px; color:var(--brassd); font-weight:700}
+  .dchip .n{font-size:17px; font-weight:800; color:var(--petrol); font-variant-numeric:tabular-nums}
+
+  .kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  @media(max-width:560px){ .kpis{grid-template-columns:1fr 1fr} }
+  .kpi{background:var(--card); border:1px solid var(--line); border-radius:13px; padding:13px 14px;
+    box-shadow:0 4px 14px rgba(31,42,46,.06)}
+  .kpi.dark{background:var(--petrol); border-color:var(--petrol)}
+  .kpi .k{font-size:11px; font-weight:700; color:var(--muted)}
+  .kpi.dark .k{color:var(--brass)}
+  .kpi .v{font-size:25px; font-weight:800; color:var(--petrol); margin-top:2px; font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+  .kpi.dark .v{color:#fff}
+  .kpi .s{font-size:10.5px; color:var(--muted); margin-top:1px}
+  .kpi.dark .s{color:#B9C6C8}
+
+  .block{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:15px 17px; margin-top:13px;
+    box-shadow:0 4px 14px rgba(31,42,46,.06)}
+  .block h3{font-size:13px; color:var(--petrol); margin:0 0 4px}
+  .block h3 .sub{font-weight:600; color:var(--muted); font-size:11px}
+  .legend{display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 4px; font-size:11.5px; color:var(--ink)}
+  .legend span{display:flex; align-items:center; gap:6px}
+  .sw{width:11px; height:11px; border-radius:3px; display:inline-block}
+  svg{display:block; width:100%; height:auto}
+
+  .brk{display:grid; grid-template-columns:1fr; gap:8px; margin-top:6px}
+  .brow{display:flex; align-items:center; gap:10px}
+  .brow .nm{font-size:12px; font-weight:700; color:var(--ink); min-width:190px}
+  .brow .bar{height:13px; border-radius:6px; min-width:3px}
+  .brow .vv{font-size:12.5px; font-weight:800; color:var(--petrol); font-variant-numeric:tabular-nums; margin-left:auto}
+
+  .btns{margin-top:16px; display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+  .btn{font-size:12px; font-weight:700; border-radius:9px; padding:8px 14px; cursor:pointer; border:1px solid var(--line)}
+  .btn.ghost{color:var(--petrol); background:var(--sand)}
+  .btn.ghost:hover{background:#E7DCC4}
+  .btn.solid{color:#fff; background:var(--petrol); border-color:var(--petrol)}
+  .copied{display:none; font-size:12px; font-weight:700; color:var(--brassd)}
+  .foot{font-size:11px; color:var(--muted); margin-top:14px; line-height:1.7}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">INTEGRATED BOOKING SIMULATION ・ THREADS × INSTAGRAM</div>
+  <h1>予約予測シミュレーター（統合版）</h1>
+  <p class="lead">Threadsの「打数（フロー）」、Instagramのフィード/リール（フロー＋フォロワー獲得）、フォロワー資産（ストック・複利）を統合し、12ヶ月の予約・売上推移を試算します。前提はすべて編集可能です。</p>
+  <span class="pill">数値は入力前提に基づく試算であり、成果を保証するものではありません</span>
+
+  <div class="grid">
+    <div class="panel" id="controls"></div>
+    <div>
+      <div class="derived" id="derived"></div>
+      <div class="kpis" id="kpis"></div>
+
+      <div class="block">
+        <h3>月次の予約数推移 <span class="sub">エンジン別の積み上げ</span></h3>
+        <div class="legend">
+          <span><i class="sw" style="background:#15535F"></i>Threads（フロー）</span>
+          <span><i class="sw" style="background:#8A6D2E"></i>IGフィード/リール（フロー）</span>
+          <span><i class="sw" style="background:#C9A24B"></i>IGフォロワー（ストック）</span>
+        </div>
+        <div id="chart"></div>
+      </div>
+
+      <div class="block">
+        <h3 id="brkTitle">最終月の内訳</h3>
+        <div class="brk" id="brk"></div>
+      </div>
+
+      <div class="btns">
+        <button class="btn ghost" id="reset">初期値に戻す</button>
+        <button class="btn solid" id="share">この設定の共有リンクをコピー</button>
+        <span class="copied" id="copied">✓ コピーしました</span>
+      </div>
+
+      <p class="foot" id="foot"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---- field config (id, group, label, hint, type, min, max, step, def) ----
+  var GROUPS = [
+    { id:"th", title:"Threads（フロー・打数）", color:"#15535F" },
+    { id:"ig", title:"Instagram フィード/リール（フロー＋フォロワー獲得）", color:"#8A6D2E" },
+    { id:"fl", title:"フォロワー資産（ストック・複利）", color:"#C9A24B" },
+    { id:"co", title:"共通設定", color:"#0E3A42" },
+  ];
+  var F = [
+    ["th_accounts","th","アカウント数","","num",1,200,1,20],
+    ["th_posts","th","投稿数/アカ/月","","num",1,300,1,30],
+    ["th_imp","th","平均imp/投稿","","num",10,100000,10,500],
+    ["th_like","th","いいね率","いいね÷imp（参考）","pct",0.2,8,0.1,2.0],
+    ["th_ctr","th","クリック率","プロフィール/リンク÷imp","pct",0.1,5,0.1,0.8],
+    ["th_reach","th","予約サイト到達率","クリックのうち","pct",5,100,1,50],
+    ["th_cvr","th","予約CVR","サイト→予約","pct",0.2,10,0.1,2.5],
+
+    ["ig_reels","ig","リール 月間imp","","num",0,5000000,10000,500000],
+    ["ig_feed","ig","フィード 月間imp","","num",0,5000000,10000,150000],
+    ["ig_profile","ig","プロフィールアクセス率","imp→プロフィール訪問","pct",0.1,5,0.1,1.0],
+    ["ig_link","ig","リンクタップ率","プロフィール→サイト(bio)","pct",1,40,1,10],
+    ["ig_cvr","ig","予約CVR","サイト→予約","pct",0.2,10,0.1,2.5],
+    ["ig_reelsFollow","ig","リール フォロー率","リールimp→新規フォロー","pct",0.05,3,0.05,0.3],
+    ["ig_feedFollow","ig","フィード フォロー率","フィードimp→新規フォロー","pct",0.05,3,0.05,0.5],
+
+    ["f_start","fl","開始フォロワー数","","num",0,1000000,100,0],
+    ["f_other","fl","その他経由の月間フォロワー増","Threads等からの流入","num",0,200000,100,0],
+    ["f_churn","fl","月間離脱率","unfollow","pct",0,15,0.5,2.0],
+    ["f_rate","fl","月間予約率","フォロワー総数比","pct",0.1,3,0.1,1.0],
+
+    ["adr","co","平均予約単価（円）","","num",3000,500000,1000,30000],
+    ["months","co","シミュレーション期間（ヶ月）","","num",1,36,1,12],
+  ];
+  var DEF={}, TYPE={}; F.forEach(function(f){DEF[f[0]]=f[8]; TYPE[f[0]]=f[4];});
+  var IDS = F.map(function(f){return f[0];});
+
+  function nf(n){return Math.round(n).toLocaleString("ja-JP");}
+  function yen(n){return "¥"+nf(n);}
+  function man(n){ if(n>=1e8){return (Math.round(n/1e8*100)/100).toLocaleString("ja-JP")+"億円";} return Math.round(n/1e4).toLocaleString("ja-JP")+"万円"; }
+  function f1(n){return (Math.round(n*10)/10).toLocaleString("ja-JP");}
+
+  // ---- build controls ----
+  var host=document.getElementById("controls"), el={};
+  GROUPS.forEach(function(g){
+    var sec=document.createElement("div"); sec.className="group";
+    var h=document.createElement("div"); h.className="gh";
+    h.innerHTML='<span class="tag" style="background:'+g.color+'">'+'　'+'</span>'+g.title;
+    sec.appendChild(h);
+    var fields=document.createElement("div"); fields.className="fields";
+    F.filter(function(f){return f[1]===g.id;}).forEach(function(f){
+      var id=f[0], label=f[2], hint=f[3], type=f[4], min=f[5], max=f[6], step=f[7], def=f[8];
+      var d=document.createElement("div"); d.className="field";
+      if(type==="pct"){
+        d.innerHTML='<div class="row"><label>'+label+(hint?'<span class="hint">'+hint+'</span>':'')+'</label>'+
+          '<span class="val"><span id="v_'+id+'">'+def+'</span>%</span></div>'+
+          '<input type="range" id="'+id+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+def+'">';
+      } else {
+        d.innerHTML='<div class="row"><label>'+label+(hint?'<span class="hint">'+hint+'</span>':'')+'</label></div>'+
+          '<input type="number" id="'+id+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+def+'">';
+      }
+      fields.appendChild(d);
+    });
+    sec.appendChild(fields); host.appendChild(sec);
+  });
+  IDS.forEach(function(id){ el[id]=document.getElementById(id); });
+
+  // ---- URL state ----
+  function readHash(){
+    var h=(location.hash||"").replace(/^#/,""); if(!h) return;
+    var q={}; h.split("&").forEach(function(p){var kv=p.split("="); if(kv.length===2) q[kv[0]]=kv[1];});
+    IDS.forEach(function(id){ var v=q[id]; if(v!=null && v!=="" && !isNaN(+v)) el[id].value=+v; });
+  }
+  function writeHash(){
+    var parts=IDS.map(function(id){return id+"="+el[id].value;});
+    try{ history.replaceState(null,"","#"+parts.join("&")); }catch(e){ location.hash=parts.join("&"); }
+  }
+
+  function val(id){ return +el[id].value; }
+
+  function calc(){
+    var thImp = val("th_accounts")*val("th_posts")*val("th_imp");
+    var thLikes = thImp*val("th_like")/100;
+    var thFlow = thImp*(val("th_ctr")/100)*(val("th_reach")/100)*(val("th_cvr")/100);
+
+    var igImp = val("ig_reels")+val("ig_feed");
+    var igFlow = igImp*(val("ig_profile")/100)*(val("ig_link")/100)*(val("ig_cvr")/100);
+    var newFollowers = val("ig_reels")*(val("ig_reelsFollow")/100) + val("ig_feed")*(val("ig_feedFollow")/100) + val("f_other");
+
+    var churn=val("f_churn")/100, rate=val("f_rate")/100, adr=val("adr");
+    var months=Math.max(1,Math.round(val("months")));
+    var Ffol=val("f_start"), rows=[];
+    for(var m=1;m<=months;m++){
+      Ffol = Ffol*(1-churn) + newFollowers;
+      var stock = Ffol*rate;
+      var total = thFlow + igFlow + stock;
+      rows.push({m:m, fol:Ffol, stock:stock, thFlow:thFlow, igFlow:igFlow, total:total, rev:total*adr});
+    }
+    var cumB=0, cumR=0; rows.forEach(function(r){cumB+=r.total; cumR+=r.rev;});
+    return {thImp:thImp, thLikes:thLikes, igImp:igImp, newFollowers:newFollowers, thFlow:thFlow, igFlow:igFlow,
+            rows:rows, months:months, cumB:cumB, cumR:cumR, adr:adr};
+  }
+
+  function niceMax(v){ if(v<=0)return 1; var p=Math.pow(10,Math.floor(Math.log10(v))); var f=v/p;
+    var nfc=f<=1?1:f<=2?2:f<=5?5:10; return nfc*p; }
+
+  function drawChart(d){
+    var rows=d.rows, n=rows.length, max=0;
+    rows.forEach(function(r){ if(r.total>max) max=r.total; });
+    var maxN=niceMax(max);
+    var W=620,H=252,padL=44,padB=34,padT=18,padR=10;
+    var plotH=H-padT-padB, plotW=W-padL-padR, bw=plotW/n;
+    var cols={thFlow:"#15535F", igFlow:"#8A6D2E", stock:"#C9A24B"};
+    var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="月次の予約数推移（エンジン別積み上げ）">';
+    for(var g=0;g<=4;g++){ var gy=padT+plotH*g/4, gv=maxN*(4-g)/4;
+      s+='<line x1="'+padL+'" y1="'+gy+'" x2="'+(W-padR)+'" y2="'+gy+'" stroke="#E4DCCC" stroke-width="1"/>';
+      s+='<text x="'+(padL-6)+'" y="'+(gy+3)+'" text-anchor="end" font-size="9" fill="#657275">'+nf(gv)+'</text>';
+    }
+    var every=n<=12?1:Math.ceil(n/12);
+    rows.forEach(function(r,i){
+      var x=padL+i*bw+bw*0.16, w=bw*0.68, yb=H-padB;
+      ["thFlow","igFlow","stock"].forEach(function(k){
+        var hpx=plotH*(r[k]/maxN); var y=yb-hpx;
+        s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+Math.max(hpx,0).toFixed(1)+'" fill="'+cols[k]+'"/>';
+        yb=y;
+      });
+      if(n<=14){ s+='<text x="'+(x+w/2).toFixed(1)+'" y="'+(yb-4).toFixed(1)+'" text-anchor="middle" font-size="9" font-weight="700" fill="#0E3A42">'+nf(r.total)+'</text>'; }
+      if(i%every===0){ s+='<text x="'+(x+w/2).toFixed(1)+'" y="'+(H-padB+14)+'" text-anchor="middle" font-size="9.5" fill="#657275">'+r.m+'</text>'; }
+    });
+    s+='<text x="'+padL+'" y="'+(H-3)+'" font-size="9" fill="#657275">経過月（ヶ月目）</text>';
+    s+='</svg>';
+    document.getElementById("chart").innerHTML=s;
+  }
+
+  function render(){
+    F.forEach(function(f){ if(f[4]==="pct"){ var v=document.getElementById("v_"+f[0]); if(v) v.textContent=f1(val(f[0]));
+      var r=el[f[0]], min=+r.min, max=+r.max, p=(val(f[0])-min)/(max-min)*100;
+      r.style.background="linear-gradient(90deg,var(--brass) 0 "+p+"%,#E7E0D2 "+p+"% 100%)"; } });
+
+    var d=calc(), last=d.rows[d.rows.length-1], first=d.rows[0], M=d.months;
+
+    document.getElementById("derived").innerHTML=
+      '<div class="dchip"><div class="l">Threads 月間imp</div><div class="n">'+nf(d.thImp)+'</div></div>'+
+      '<div class="dchip"><div class="l">IG 合計imp（月）</div><div class="n">'+nf(d.igImp)+'</div></div>'+
+      '<div class="dchip"><div class="l">月間 新規フォロワー</div><div class="n">+'+nf(d.newFollowers)+'</div></div>';
+
+    document.getElementById("kpis").innerHTML=
+      '<div class="kpi dark"><div class="k">'+M+'ヶ月目 月間予約</div><div class="v">'+nf(last.total)+'</div><div class="s">件 / 月（巡航速度）</div></div>'+
+      '<div class="kpi dark"><div class="k">'+M+'ヶ月目 月間売上</div><div class="v">'+yen(last.rev)+'</div><div class="s">約 '+man(last.rev)+'</div></div>'+
+      '<div class="kpi"><div class="k">累計 予約（'+M+'ヶ月）</div><div class="v">'+nf(d.cumB)+'</div><div class="s">件</div></div>'+
+      '<div class="kpi"><div class="k">累計 売上（'+M+'ヶ月）</div><div class="v">'+yen(d.cumR)+'</div><div class="s">約 '+man(d.cumR)+'</div></div>'+
+      '<div class="kpi"><div class="k">'+M+'ヶ月後 フォロワー総数</div><div class="v">'+nf(last.fol)+'</div><div class="s">人</div></div>'+
+      '<div class="kpi"><div class="k">初月の月間予約</div><div class="v">'+nf(first.total)+'</div><div class="s">件 / 月</div></div>';
+
+    drawChart(d);
+
+    document.getElementById("brkTitle").innerHTML=''+M+'ヶ月目の内訳 <span class="sub">エンジン別の月間予約</span>';
+    var segs=[["Threads（フロー）",last.thFlow,"#15535F"],["IGフィード/リール（フロー）",last.igFlow,"#8A6D2E"],["IGフォロワー（ストック）",last.stock,"#C9A24B"]];
+    var mx=Math.max(last.thFlow,last.igFlow,last.stock,1);
+    document.getElementById("brk").innerHTML=segs.map(function(s){
+      var pct=last.total>0?Math.round(s[1]/last.total*100):0;
+      return '<div class="brow"><span class="nm">'+s[0]+'</span>'+
+        '<span class="bar" style="width:'+(s[1]/mx*46+4).toFixed(1)+'%;background:'+s[2]+'"></span>'+
+        '<span class="vv">'+nf(s[1])+' 件 <span style="color:var(--muted);font-weight:600">（'+pct+'%）</span></span></div>';
+    }).join("");
+
+    document.getElementById("foot").innerHTML=
+      "※ モデル：月間予約 = Threadsフロー（imp×クリック率×到達率×CVR）＋ IGフロー（imp×プロフィール率×リンクタップ率×CVR）＋ IGストック（フォロワー総数×月間予約率）。フォロワー総数は毎月〔新規−離脱〕で更新され、ストック分が複利で増えます。<br>"+
+      "※ 数値はすべて入力前提に基づく試算であり、成果を保証するものではありません。実運用では各転換率を実測値で更新してください。前提はURLで共有できます。";
+
+    writeHash();
+  }
+
+  IDS.forEach(function(id){ el[id].addEventListener("input",render); });
+  document.getElementById("reset").addEventListener("click",function(){ IDS.forEach(function(id){ el[id].value=DEF[id]; }); render(); });
+  document.getElementById("share").addEventListener("click",function(){
+    writeHash(); var url=location.href, tip=document.getElementById("copied");
+    function ok(){ tip.style.display="inline"; setTimeout(function(){tip.style.display="none";},2200); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(ok,ok); }
+    else{ var t=document.createElement("textarea"); t.value=url; document.body.appendChild(t); t.select(); try{document.execCommand("copy");}catch(e){} document.body.removeChild(t); ok(); }
+  });
+
+  readHash(); render();
+})();
+</script>
